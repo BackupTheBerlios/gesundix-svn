@@ -1,0 +1,56 @@
+#!/usr/bin/perl -w
+# (c) pr0gm4 <pr0gm4@linoratix.com> 
+######
+# mailscanner for courier
+# needed perl modules File::Scan::ClamAV
+
+# wir sind strict ...
+use strict;
+# und verwenden das schoene perl module
+use File::Scan::ClamAV;
+
+# init object
+# path to clamd-socket file 
+our $av = new File::Scan::ClamAV(port => "/var/run/clamav/clamd.ctl");
+
+sub main
+{
+	my $mail = join("", <STDIN>);
+	my ($code, $virus) = $av->streamscan($mail);
+
+	if(get_users()) {
+		if($code eq "FOUND") {
+			# da hammer nen virus
+			# dann wird mal der header abgeaendert
+			$mail =~ s/subject: (.*?)\n/Subject: $1\nX-Virus: yes <$virus>\n/i;
+			print STDOUT $mail;
+		} elsif($code eq "OK") {
+			# alles roger
+			print STDOUT $mail;
+		} else {
+			# da ist ein Fehler aufgetrehten ...
+			# ihrgend was machen
+			print STDERR "Fehler \"".$av->errstr."\"";
+		}
+	} else {
+		print $mail;
+	}
+}
+
+sub get_users
+{
+	my @users = ();
+	open(FH, "</etc/gesundix/users.conf");
+	chomp(@users = <FH>);
+	close(FH);
+	
+	if(grep(/^$ENV{USER}$/, @users)) {
+		# der user wird gescannt
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+&main();
+
